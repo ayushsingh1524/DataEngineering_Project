@@ -1,0 +1,35 @@
+version: 2
+
+models:
+
+  - name: stg_customers
+    description: "Cleaned and standardized customer data."
+    columns:
+      - name: CUSTOMER_ID
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_orders
+    description: "Latest version of each order."
+    columns:
+      - name: ORDER_ID
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_products
+    description: "Cleaned and standardized product data."
+    columns:
+      - name: PRODUCT_ID
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_api_users
+    description: "Cleaned users ingested from the REST API."
+    columns:
+      - name: USER_ID
+        tests:
+          - not_null
+          - unique

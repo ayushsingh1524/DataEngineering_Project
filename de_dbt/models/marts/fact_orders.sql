@@ -1,0 +1,22 @@
+{{ config(materialized='table') }}
+
+SELECT
+    ORDER_ID,
+    CUSTOMER_ID,
+    ORDER_DATE,
+    ORDER_STATUS,
+    TOTAL_AMOUNT,
+    CREATED_AT,
+    UPDATED_AT,
+
+    YEAR(ORDER_DATE) AS ORDER_YEAR,
+
+    MONTH(ORDER_DATE) AS ORDER_MONTH,
+
+    CASE
+        WHEN TOTAL_AMOUNT < 100 THEN 'LOW'
+        WHEN TOTAL_AMOUNT <= 500 THEN 'MEDIUM'
+        ELSE 'HIGH'
+    END AS ORDER_VALUE_BAND
+
+FROM {{ ref('stg_orders') }}

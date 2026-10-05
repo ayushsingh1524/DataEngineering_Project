@@ -1,0 +1,34 @@
+
+target/
+dbt_packages/
+logs/
+.env
+# dbt generated files
+de_dbt/target/
+de_dbt/logs/
+de_dbt/dbt_packages/
+
+# dbt local credentials
+profiles.yml
+de_dbt/profiles.yml
+
+# Airflow local/runtime files
+airflow/logs/
+airflow/airflow.db
+airflow/*.db
+airflow/airflow.cfg
+airflow/simple_auth_manager_passwords*.json
+
+# Private keys / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Generated SQL Server incremental extracts
+data/source/sqlserver_incremental/*.csv
+data/source/sqlserver_incremental/*.gz
+
+# Temporary files
+*.tmp
+*.bak

@@ -1,0 +1,47 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+# dbt generated files
+de_dbt/target/
+de_dbt/logs/
+de_dbt/dbt_packages/
+
+# dbt credentials
+profiles.yml
+de_dbt/profiles.yml
+
+# Airflow runtime files
+airflow/logs/
+airflow/airflow.db
+airflow/*.db
+airflow/airflow.cfg
+airflow/simple_auth_manager_passwords*.json
+
+# Credentials / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Generated incremental extracts
+data/source/sqlserver_incremental/*.csv
+data/source/sqlserver_incremental/*.gz
+
+# Temporary files
+*.tmp
+*.bak
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

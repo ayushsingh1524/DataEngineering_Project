@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: DE_PROJECT_DB
+    schema: BRONZE
+
+    tables:
+      - name: CUSTOMERS
+      - name: PRODUCTS
+      - name: SUPPLIERS
+      - name: ORDERS
+      - name: ORDER_ITEMS
+      - name: API_USERS

@@ -1,0 +1,20 @@
+{{ config(materialized='table') }}
+
+SELECT
+    PRODUCT_ID,
+    PRODUCT_NAME,
+    CATEGORY,
+    SUBCATEGORY,
+    SUPPLIER_ID,
+    UNIT_PRICE,
+    COST_PRICE,
+
+    UNIT_PRICE - COST_PRICE AS UNIT_MARGIN,
+
+    CASE
+        WHEN UNIT_PRICE - COST_PRICE < 0 THEN 'LOSS'
+        WHEN UNIT_PRICE - COST_PRICE = 0 THEN 'BREAK_EVEN'
+        ELSE 'PROFIT'
+    END AS MARGIN_STATUS
+
+FROM {{ ref('stg_products') }}

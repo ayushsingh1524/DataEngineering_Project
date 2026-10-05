@@ -1,0 +1,22 @@
+{{ config(materialized='table') }}
+
+SELECT
+    USER_ID,
+
+    TRIM(NAME) AS NAME,
+
+    TRIM(USERNAME) AS USERNAME,
+
+    LOWER(TRIM(EMAIL)) AS EMAIL,
+
+    TRIM(PHONE) AS PHONE,
+
+    TRIM(WEBSITE) AS WEBSITE,
+
+    COALESCE(NULLIF(TRIM(CITY), ''), 'Unknown') AS CITY,
+
+    TRIM(ZIPCODE) AS ZIPCODE,
+
+    TRIM(COMPANY) AS COMPANY
+
+FROM {{ source('bronze', 'API_USERS') }}

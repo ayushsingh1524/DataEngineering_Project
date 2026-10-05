@@ -1,0 +1,30 @@
+{{ config(materialized='table') }}
+
+SELECT
+    c.CUSTOMER_ID,
+    c.CUSTOMER_NAME,
+    c.COUNTRY,
+    c.CITY,
+    c.CUSTOMER_SEGMENT,
+
+    COUNT(o.ORDER_ID) AS TOTAL_ORDERS,
+
+    COALESCE(SUM(o.TOTAL_AMOUNT), 0) AS TOTAL_REVENUE,
+
+    COALESCE(AVG(o.TOTAL_AMOUNT), 0) AS AVERAGE_ORDER_VALUE,
+
+    MIN(o.ORDER_DATE) AS FIRST_ORDER_DATE,
+
+    MAX(o.ORDER_DATE) AS LAST_ORDER_DATE
+
+FROM {{ ref('dim_customers') }} c
+
+LEFT JOIN {{ ref('fact_orders') }} o
+    ON c.CUSTOMER_ID = o.CUSTOMER_ID
+
+GROUP BY
+    c.CUSTOMER_ID,
+    c.CUSTOMER_NAME,
+    c.COUNTRY,
+    c.CITY,
+    c.CUSTOMER_SEGMENT
