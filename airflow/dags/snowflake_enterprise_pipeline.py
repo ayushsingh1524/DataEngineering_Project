@@ -1,53 +1,47 @@
 import os
 import shlex
+import sys
 from datetime import datetime
+from pathlib import Path
 
-from airflow.sdk import DAG
-from airflow.providers.standard.operators.bash import BashOperator
-
-
-# Airflow runs in WSL2 and delegates Windows-authenticated SQL Server access
-# to the Windows Python environment through PowerShell.
-PROJECT = os.getenv(
-    "DATA_ENGINEERING_PROJECT_WINDOWS_PATH",
-    r"D:\DataEnggProject\snowflake-enterprise-data-platform",
-)
-POWERSHELL = os.getenv("POWERSHELL_EXECUTABLE", "powershell.exe")
-PYTHON_EXE = os.getenv("WINDOWS_PYTHON_EXECUTABLE", ".venv\\Scripts\\python.exe")
-DBT_EXE = os.getenv("WINDOWS_DBT_EXECUTABLE", ".venv\\Scripts\\dbt.exe")
+from airflow import DAG
+from airflow.operators.bash import BashOperator
 
 
-def ps_quote(value: str) -> str:
-    """Return a PowerShell single-quoted string literal."""
-    return "'" + value.replace("'", "''") + "'"
-
-
-def powershell_task(script: str) -> str:
-    """Build a shell-quoted WSL -> PowerShell command."""
-    return (
-        f"{shlex.quote(POWERSHELL)} -NoProfile -NonInteractive "
-        f"-Command {shlex.quote(script)}"
+# The DAG is designed for a macOS/Linux local checkout. If Airflow runs in a
+# separate environment/container, set DATA_ENGINEERING_PROJECT_DIR to the
+# repository path visible to the Airflow worker.
+PROJECT_DIR = Path(
+    os.getenv(
+        "DATA_ENGINEERING_PROJECT_DIR",
+        str(Path(__file__).resolve().parents[2]),
     )
+).expanduser()
+
+VENV_DIR = PROJECT_DIR / ".venv"
+PYTHON_EXE = os.getenv(
+    "PROJECT_PYTHON_EXECUTABLE",
+    str(VENV_DIR / "bin" / "python"),
+)
+DBT_EXE = os.getenv(
+    "PROJECT_DBT_EXECUTABLE",
+    str(VENV_DIR / "bin" / "dbt"),
+)
+
+
+def shell_command(executable: str, *arguments: str, cwd: Path = PROJECT_DIR) -> str:
+    """Build a safely quoted command for the Airflow worker's POSIX shell."""
+    parts = ["cd", shlex.quote(str(cwd)), "&&", shlex.quote(executable)]
+    parts.extend(shlex.quote(argument) for argument in arguments)
+    return " ".join(parts)
 
 
 def python_task(script_path: str) -> str:
-    executable = f"{PROJECT}\\{PYTHON_EXE}"
-    target = f"{PROJECT}\\{script_path.replace('/', chr(92))}"
-    script = (
-        f"Set-Location -LiteralPath {ps_quote(PROJECT)}; "
-        f"& {ps_quote(executable)} {ps_quote(target)}"
-    )
-    return powershell_task(script)
+    return shell_command(PYTHON_EXE, str(PROJECT_DIR / script_path))
 
 
-def dbt_task(arguments: str) -> str:
-    executable = f"{PROJECT}\\{DBT_EXE}"
-    working_directory = f"{PROJECT}\\de_dbt"
-    script = (
-        f"Set-Location -LiteralPath {ps_quote(working_directory)}; "
-        f"& {ps_quote(executable)} {arguments}"
-    )
-    return powershell_task(script)
+def dbt_task(*arguments: str) -> str:
+    return shell_command(DBT_EXE, *arguments, cwd=PROJECT_DIR / "de_dbt")
 
 
 default_args = {
