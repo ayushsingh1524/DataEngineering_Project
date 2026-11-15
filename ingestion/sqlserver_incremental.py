@@ -15,6 +15,21 @@ OUTPUT_FOLDER = PROJECT_ROOT / "data" / "source" / "sqlserver_incremental"
 OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
+INCREMENTAL_ORDERS_QUERY = """
+    SELECT
+        ORDER_ID,
+        CUSTOMER_ID,
+        ORDER_DATE,
+        ORDER_STATUS,
+        TOTAL_AMOUNT,
+        CREATED_AT,
+        UPDATED_AT
+    FROM OPERATIONS.ORDERS
+    WHERE UPDATED_AT > ?
+    ORDER BY UPDATED_AT
+"""
+
+
 def get_snowflake_connection():
     return snowflake.connector.connect(
         account=os.getenv("SNOWFLAKE_ACCOUNT"),
@@ -26,19 +41,47 @@ def get_snowflake_connection():
     )
 
 
-def get_sqlserver_connection():
-    server = os.getenv("SQLSERVER_HOST")
+def build_sqlserver_connection_string() -> str:
+    """Build an ODBC connection string for a SQL Server Docker container."""
+    host = os.getenv("SQLSERVER_HOST", "localhost")
+    port = os.getenv("SQLSERVER_PORT", "1433")
     database = os.getenv("SQLSERVER_DATABASE")
+    username = os.getenv("SQLSERVER_USER")
+    password = os.getenv("SQLSERVER_PASSWORD")
+    driver = os.getenv("SQLSERVER_DRIVER", "ODBC Driver 18 for SQL Server")
 
-    connection_string = (
-        "DRIVER={ODBC Driver 17 for SQL Server};"
-        f"SERVER={server};"
-        f"DATABASE={database};"
-        "Trusted_Connection=yes;"
+    missing = [
+        name
+        for name, value in {
+            "SQLSERVER_DATABASE": database,
+            "SQLSERVER_USER": username,
+            "SQLSERVER_PASSWORD": password,
+        }.items()
+        if not value
+    ]
+    if missing:
+        raise ValueError("Set the following values in .env: " + ", ".join(missing))
+
+    # ODBC brace-quoted values safely support semicolons and closing braces.
+    def odbc_value(value: str) -> str:
+        return "{" + value.replace("}", "}}") + "}"
+
+    server = f"tcp:{host},{port}"
+    return (
+        f"DRIVER={odbc_value(driver)};"
+        f"SERVER={odbc_value(server)};"
+        f"DATABASE={odbc_value(database)};"
+        f"UID={odbc_value(username)};"
+        f"PWD={odbc_value(password)};"
+        "Encrypt=yes;"
         "TrustServerCertificate=yes;"
+        "Connection Timeout=15;"
     )
 
-    return pyodbc.connect(connection_string)
+
+def get_sqlserver_connection():
+    """Connect from the Mac host to the SQL Server container's published port."""
+    return pyodbc.connect(build_sqlserver_connection_string())
 
 def get_watermark():
     connection = get_snowflake_connection()
@@ -77,24 +120,10 @@ def extract_incremental_orders():
     sqlserver_connection = get_sqlserver_connection()
 
     try:
-        query = """
-            SELECT
-                ORDER_ID,
-                CUSTOMER_ID,
-                ORDER_DATE,
-                ORDER_STATUS,
-                TOTAL_AMOUNT,
-                CREATED_AT,
-                UPDATED_AT
-            FROM OPERATIONS.ORDERS
-            WHERE UPDATED_AT > ?
-            ORDER BY UPDATED_AT
-        """
-
         df = pd.read_sql(
-            query,
+            INCREMENTAL_ORDERS_QUERY,
             sqlserver_connection,
-            params=[watermark]
+            params=[watermark],
         )
 
         print("Rows extracted:", len(df))

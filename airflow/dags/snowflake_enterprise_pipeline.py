@@ -1,10 +1,47 @@
+import os
+import shlex
 from datetime import datetime
+from pathlib import Path
 
 from airflow.sdk import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 
 
-PROJECT = r"D:\DataEnggProject\snowflake-enterprise-data-platform"
+# The DAG is designed for a macOS/Linux local checkout. If Airflow runs in a
+# separate environment/container, set DATA_ENGINEERING_PROJECT_DIR to the
+# repository path visible to the Airflow worker.
+PROJECT_DIR = Path(
+    os.getenv(
+        "DATA_ENGINEERING_PROJECT_DIR",
+        str(Path(__file__).resolve().parents[2]),
+    )
+).expanduser()
+
+VENV_DIR = PROJECT_DIR / ".venv"
+PYTHON_EXE = os.getenv(
+    "PROJECT_PYTHON_EXECUTABLE",
+    str(VENV_DIR / "bin" / "python"),
+)
+DBT_EXE = os.getenv(
+    "PROJECT_DBT_EXECUTABLE",
+    str(VENV_DIR / "bin" / "dbt"),
+)
+
+
+def shell_command(executable: str, *arguments: str, cwd: Path = PROJECT_DIR) -> str:
+    """Build a safely quoted command for the Airflow worker's POSIX shell."""
+    parts = ["cd", shlex.quote(str(cwd)), "&&", shlex.quote(executable)]
+    parts.extend(shlex.quote(argument) for argument in arguments)
+    return " ".join(parts)
+
+
+def python_task(script_path: str) -> str:
+    return shell_command(PYTHON_EXE, str(PROJECT_DIR / script_path))
+
+
+def dbt_task(*arguments: str) -> str:
+    return shell_command(DBT_EXE, *arguments, cwd=PROJECT_DIR / "de_dbt")
+
 
 default_args = {
     "owner": "data-engineering",
@@ -20,81 +57,42 @@ with DAG(
     catchup=False,
     tags=["snowflake", "dbt", "data-engineering"],
 ) as dag:
-
     csv_ingestion = BashOperator(
         task_id="csv_ingestion",
-        bash_command=f"""
-        powershell.exe -NoProfile -Command "
-        Set-Location '{PROJECT}';
-        & '.\\.venv\\Scripts\\python.exe' 'ingestion\\csv_to_snowflake.py'
-        "
-        """,
+        bash_command=python_task("ingestion/csv_to_snowflake.py"),
     )
 
     sqlserver_incremental = BashOperator(
         task_id="sqlserver_incremental_extraction",
-        bash_command=f"""
-        powershell.exe -NoProfile -Command "
-        Set-Location '{PROJECT}';
-        & '.\\.venv\\Scripts\\python.exe' 'ingestion\\sqlserver_incremental.py'
-        "
-        """,
+        bash_command=python_task("ingestion/sqlserver_incremental.py"),
     )
 
     sqlserver_stage_upload = BashOperator(
         task_id="sqlserver_stage_upload",
-        bash_command=f"""
-        powershell.exe -NoProfile -Command "
-        Set-Location '{PROJECT}';
-        & '.\\.venv\\Scripts\\python.exe' 'ingestion\\upload_sqlserver_orders.py'
-        "
-        """,
+        bash_command=python_task("ingestion/upload_sqlserver_orders.py"),
     )
 
     api_extraction = BashOperator(
         task_id="api_extraction",
-        bash_command=f"""
-        powershell.exe -NoProfile -Command "
-        Set-Location '{PROJECT}';
-        & '.\\.venv\\Scripts\\python.exe' 'ingestion\\api_to_csv.py'
-        "
-        """,
+        bash_command=python_task("ingestion/api_to_csv.py"),
     )
 
     api_stage_upload = BashOperator(
         task_id="api_stage_upload",
-        bash_command=f"""
-        powershell.exe -NoProfile -Command "
-        Set-Location '{PROJECT}';
-        & '.\\.venv\\Scripts\\python.exe' 'ingestion\\upload_api_to_snowflake.py'
-        "
-        """,
+        bash_command=python_task("ingestion/upload_api_to_snowflake.py"),
     )
 
     dbt_run = BashOperator(
         task_id="dbt_run",
-        bash_command=f"""
-        powershell.exe -NoProfile -Command "
-        Set-Location '{PROJECT}\\de_dbt';
-        & '..\\.venv\\Scripts\\dbt.exe' run
-        "
-        """,
+        bash_command=dbt_task("run"),
     )
 
     dbt_test = BashOperator(
         task_id="dbt_test",
-        bash_command=f"""
-        powershell.exe -NoProfile -Command "
-        Set-Location '{PROJECT}\\de_dbt';
-        & '..\\.venv\\Scripts\\dbt.exe' test
-        "
-        """,
+        bash_command=dbt_task("test"),
     )
 
     csv_ingestion >> dbt_run
-
     sqlserver_incremental >> sqlserver_stage_upload >> dbt_run
-
     api_extraction >> api_stage_upload >> dbt_run
-
     dbt_run >> dbt_test

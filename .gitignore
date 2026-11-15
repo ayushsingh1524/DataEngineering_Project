@@ -45,3 +45,10 @@ data/source/sqlserver_incremental/*.gz
 # OS files
 .DS_Store
 Thumbs.db
+# Test/build artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
