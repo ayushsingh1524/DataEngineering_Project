@@ -2,7 +2,7 @@
 
 A portfolio-scale data engineering project that ingests CSV files, SQL Server order data, and REST API records into Snowflake; transforms warehouse data with dbt; and orchestrates the workflow with Apache Airflow.
 
-> **Execution environment:** The current SQL Server integration uses Windows Integrated Authentication. Airflow runs in WSL2 and invokes the Windows Python/dbt environment through PowerShell. This is a documented local-development architecture, not a cloud-hosted production deployment.
+ > **Execution environment:** This repository is developed on macOS. The Airflow DAG uses POSIX shell commands and paths. SQL Server connectivity on macOS requires a compatible Microsoft ODBC driver and SQL Server authentication; Windows Integrated Authentication is not assumed. This is a local portfolio implementation, not a cloud-hosted production deployment.
 
 ## Architecture
 
@@ -75,7 +75,7 @@ The dbt project is under `de_dbt/`. Model-level tests are defined alongside the 
 - Access to a SQL Server instance and the Microsoft ODBC Driver for SQL Server
 - A Snowflake account with the database, schemas, stages, and watermark control table used by the scripts
 - dbt-snowflake configured with a local dbt profile
-- For Airflow orchestration: the existing WSL2 + Windows PowerShell integration and a compatible Airflow installation
+- For Airflow orchestration: a compatible Airflow installation with the DAG's required providers installed
 
 Airflow is intentionally managed separately from the project Python dependencies because Airflow installations should use the constraints file for the selected Airflow and Python versions. Do not install Airflow by adding it to the application requirements file.
 
@@ -96,7 +96,7 @@ pip install -r requirements.txt
 
 Copy `.env.example` to `.env` and provide your own connection values. Never commit `.env`, passwords, tokens, or private dbt profiles.
 
-The SQL Server connection currently uses `Trusted_Connection=yes`; it therefore requires a Windows environment with the appropriate ODBC driver and Windows credentials. Configure the Snowflake account, user, password, warehouse, database, and schema in the environment.
+On macOS, install the Microsoft ODBC Driver for SQL Server and configure SQL Server authentication using `SQLSERVER_USER` and `SQLSERVER_PASSWORD`. The current Windows `Trusted_Connection` approach is not portable to macOS. Configure the Snowflake account, user, password, warehouse, database, and schema in the environment.
 
 ## Running ingestion scripts
 
@@ -110,7 +110,7 @@ python ingestion/upload_sqlserver_orders.py
 python ingestion/upload_api_to_snowflake.py
 ```
 
-The SQL Server and Snowflake scripts require valid external connections and the corresponding source objects/stages to exist. They cannot be fully exercised without those services and credentials.
+The SQL Server and Snowflake scripts require valid external connections and the corresponding source objects/stages to exist. They cannot be fully exercised without those services and credentials. The SQL Server connection settings must be compatible with macOS and the installed ODBC driver.
 
 ## Running dbt
 
@@ -123,18 +123,11 @@ dbt run
 dbt test
 ```
 
-## Airflow orchestration (WSL2 + Windows)
+## Airflow orchestration (macOS / Linux)
 
-The DAG is `airflow/dags/snowflake_enterprise_pipeline.py`. It retains the WSL2-to-Windows PowerShell bridge required by the current Windows Integrated Authentication setup, but allows the project path and executable names to be configured.
+The DAG is `airflow/dags/snowflake_enterprise_pipeline.py`. It resolves the repository root relative to the DAG file by default, uses `.venv/bin/python` and `.venv/bin/dbt`, and executes commands through the Airflow worker's POSIX shell.
 
-Set these variables in the environment used by the Airflow scheduler and workers:
-
-- `DATA_ENGINEERING_PROJECT_WINDOWS_PATH`: absolute Windows path to the project directory.
-- `POWERSHELL_EXECUTABLE`: PowerShell executable available from WSL (defaults to `powershell.exe`).
-- `WINDOWS_PYTHON_EXECUTABLE`: Python executable path relative to the project directory (defaults to `.venv\\Scripts\\python.exe`).
-- `WINDOWS_DBT_EXECUTABLE`: dbt executable path relative to the project directory (defaults to `.venv\\Scripts\\dbt.exe`).
-
-The DAG is manually triggered (`schedule=None`). Airflow must be installed and configured separately in WSL2, and the Windows project path and executable paths must be valid from the PowerShell process.
+If Airflow runs in a separate container or environment, set `DATA_ENGINEERING_PROJECT_DIR` to the repository path mounted and visible to the worker. Optionally override `PROJECT_PYTHON_EXECUTABLE` and `PROJECT_DBT_EXECUTABLE` if your executables are installed elsewhere. Ensure the Airflow scheduler and workers can access the same project files and environment variables. The DAG is manually triggered (`schedule=None`). Install Airflow and its required providers separately using the constraints file for your Airflow/Python version; do not install Airflow as an unconstrained application dependency.
 
 ## Tests
 
@@ -149,7 +142,7 @@ The unit tests cover the API ingestion helpers and incremental extraction query 
 ## Security and operational boundaries
 
 - Keep credentials in environment variables or a local `.env` file; do not commit secrets.
-- The current SQL Server connector uses Windows Integrated Authentication.
+- macOS SQL Server access requires the configured ODBC driver and SQL Server credentials; Windows Integrated Authentication is not assumed.
 - The current project is a local portfolio implementation. Production deployment, managed secrets, alerting, cloud-hosted Airflow, and automated infrastructure provisioning are not claimed.
 - The pipeline uses batch and watermark-based incremental extraction; it is not a real-time streaming platform.
 
