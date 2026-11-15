@@ -17,30 +17,37 @@ PYTHON_EXE = os.getenv("WINDOWS_PYTHON_EXECUTABLE", ".venv\\Scripts\\python.exe"
 DBT_EXE = os.getenv("WINDOWS_DBT_EXECUTABLE", ".venv\\Scripts\\dbt.exe")
 
 
-def powershell_task(command: str) -> str:
-    """Build a safely shell-quoted WSL -> PowerShell command."""
-    project = PROJECT.replace("'", "''")
-    command = command.replace("'", "''")
-    script = (
-        f"Set-Location -LiteralPath '{project}'; "
-        f"& '{command}'"
+def ps_quote(value: str) -> str:
+    """Return a PowerShell single-quoted string literal."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def powershell_task(script: str) -> str:
+    """Build a shell-quoted WSL -> PowerShell command."""
+    return (
+        f"{shlex.quote(POWERSHELL)} -NoProfile -NonInteractive "
+        f"-Command {shlex.quote(script)}"
     )
-    return f"{shlex.quote(POWERSHELL)} -NoProfile -NonInteractive -Command {shlex.quote(script)}"
 
 
 def python_task(script_path: str) -> str:
     executable = f"{PROJECT}\\{PYTHON_EXE}"
     target = f"{PROJECT}\\{script_path.replace('/', chr(92))}"
-    return powershell_task(f"& '{executable}' '{target}'")
+    script = (
+        f"Set-Location -LiteralPath {ps_quote(PROJECT)}; "
+        f"& {ps_quote(executable)} {ps_quote(target)}"
+    )
+    return powershell_task(script)
 
 
 def dbt_task(arguments: str) -> str:
     executable = f"{PROJECT}\\{DBT_EXE}"
     working_directory = f"{PROJECT}\\de_dbt"
-    return powershell_task(
-        f"Set-Location -LiteralPath '{working_directory}'; "
-        f"& '{executable}' {arguments}"
+    script = (
+        f"Set-Location -LiteralPath {ps_quote(working_directory)}; "
+        f"& {ps_quote(executable)} {arguments}"
     )
+    return powershell_task(script)
 
 
 default_args = {
