@@ -15,6 +15,21 @@ OUTPUT_FOLDER = PROJECT_ROOT / "data" / "source" / "sqlserver_incremental"
 OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
+INCREMENTAL_ORDERS_QUERY = """
+    SELECT
+        ORDER_ID,
+        CUSTOMER_ID,
+        ORDER_DATE,
+        ORDER_STATUS,
+        TOTAL_AMOUNT,
+        CREATED_AT,
+        UPDATED_AT
+    FROM OPERATIONS.ORDERS
+    WHERE UPDATED_AT > ?
+    ORDER BY UPDATED_AT
+"""
+
+
 def get_snowflake_connection():
     return snowflake.connector.connect(
         account=os.getenv("SNOWFLAKE_ACCOUNT"),
@@ -77,24 +92,10 @@ def extract_incremental_orders():
     sqlserver_connection = get_sqlserver_connection()
 
     try:
-        query = """
-            SELECT
-                ORDER_ID,
-                CUSTOMER_ID,
-                ORDER_DATE,
-                ORDER_STATUS,
-                TOTAL_AMOUNT,
-                CREATED_AT,
-                UPDATED_AT
-            FROM OPERATIONS.ORDERS
-            WHERE UPDATED_AT > ?
-            ORDER BY UPDATED_AT
-        """
-
         df = pd.read_sql(
-            query,
+            INCREMENTAL_ORDERS_QUERY,
             sqlserver_connection,
-            params=[watermark]
+            params=[watermark],
         )
 
         print("Rows extracted:", len(df))
