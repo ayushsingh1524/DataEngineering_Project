@@ -42,14 +42,33 @@ def get_snowflake_connection():
 
 
 def get_sqlserver_connection():
+    """Connect using SQL authentication, which is suitable for macOS clients."""
     server = os.getenv("SQLSERVER_HOST")
     database = os.getenv("SQLSERVER_DATABASE")
+    username = os.getenv("SQLSERVER_USER")
+    password = os.getenv("SQLSERVER_PASSWORD")
+    driver = os.getenv("SQLSERVER_DRIVER", "ODBC Driver 18 for SQL Server")
+
+    if not server or not database:
+        raise ValueError("Set SQLSERVER_HOST and SQLSERVER_DATABASE in .env.")
+
+    if not username or not password:
+        raise ValueError(
+            "Set SQLSERVER_USER and SQLSERVER_PASSWORD. "
+            "Windows Trusted_Connection is not the default on macOS."
+        )
+
+    # ODBC brace-quoted values safely support semicolons and closing braces.
+    def odbc_value(value: str) -> str:
+        return "{" + value.replace("}", "}}") + "}"
 
     connection_string = (
-        "DRIVER={ODBC Driver 17 for SQL Server};"
-        f"SERVER={server};"
-        f"DATABASE={database};"
-        "Trusted_Connection=yes;"
+        f"DRIVER={odbc_value(driver)};"
+        f"SERVER={odbc_value(server)};"
+        f"DATABASE={odbc_value(database)};"
+        f"UID={odbc_value(username)};"
+        f"PWD={odbc_value(password)};"
+        "Encrypt=yes;"
         "TrustServerCertificate=yes;"
     )
 
