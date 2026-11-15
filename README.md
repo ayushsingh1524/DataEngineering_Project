@@ -96,7 +96,7 @@ pip install -r requirements.txt
 
 Copy `.env.example` to `.env` and provide your own connection values. Never commit `.env`, passwords, tokens, or private dbt profiles.
 
-On macOS, install the Microsoft ODBC Driver for SQL Server and configure SQL Server authentication using `SQLSERVER_USER` and `SQLSERVER_PASSWORD`. The current Windows `Trusted_Connection` approach is not portable to macOS. Configure the Snowflake account, user, password, warehouse, database, and schema in the environment.
+For the SQL Server Docker container, publish its port to the Mac host (commonly `1433:1433`) and configure `SQLSERVER_HOST=localhost`, `SQLSERVER_PORT=1433`, `SQLSERVER_DATABASE`, `SQLSERVER_USER`, and `SQLSERVER_PASSWORD` in `.env`. The container must be running and SQL Server authentication must be enabled. Install Microsoft's ODBC Driver 18 for SQL Server on macOS. The default connection uses encryption with `TrustServerCertificate=yes` for local development; use a trusted certificate configuration for production. Configure the Snowflake account, user, password, warehouse, database, and schema in the environment.
 
 ## Running ingestion scripts
 
@@ -110,7 +110,7 @@ python ingestion/upload_sqlserver_orders.py
 python ingestion/upload_api_to_snowflake.py
 ```
 
-The SQL Server and Snowflake scripts require valid external connections and the corresponding source objects/stages to exist. They cannot be fully exercised without those services and credentials. The SQL Server connection settings must be compatible with macOS and the installed ODBC driver.
+The SQL Server and Snowflake scripts require valid external connections and the corresponding source objects/stages to exist. They cannot be fully exercised without those services and credentials. From macOS, the SQL Server container must publish its port to the host and accept SQL authentication.
 
 ## Running dbt
 
@@ -142,7 +142,8 @@ The unit tests cover the API ingestion helpers and incremental extraction query 
 ## Security and operational boundaries
 
 - Keep credentials in environment variables or a local `.env` file; do not commit secrets.
-- macOS SQL Server access requires the configured ODBC driver and SQL Server credentials; Windows Integrated Authentication is not assumed.
+- The SQL Server Docker container must expose a host port; the Mac connects to `localhost` and that published port using SQL authentication.
+- The SQL Server ODBC connection currently enables `TrustServerCertificate=yes` for local development; configure certificate validation appropriately before production use.
 - The current project is a local portfolio implementation. Production deployment, managed secrets, alerting, cloud-hosted Airflow, and automated infrastructure provisioning are not claimed.
 - The pipeline uses batch and watermark-based incremental extraction; it is not a real-time streaming platform.
 
