@@ -4,8 +4,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.sdk import DAG
+from airflow.providers.standard.operators.bash import BashOperator
 
 
 # The DAG is designed for a macOS/Linux local checkout. If Airflow runs in a
