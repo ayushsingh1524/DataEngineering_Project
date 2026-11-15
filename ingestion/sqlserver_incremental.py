@@ -41,28 +41,33 @@ def get_snowflake_connection():
     )
 
 
-def get_sqlserver_connection():
-    """Connect using SQL authentication, which is suitable for macOS clients."""
-    server = os.getenv("SQLSERVER_HOST")
+def build_sqlserver_connection_string() -> str:
+    """Build an ODBC connection string for a SQL Server Docker container."""
+    host = os.getenv("SQLSERVER_HOST", "localhost")
+    port = os.getenv("SQLSERVER_PORT", "1433")
     database = os.getenv("SQLSERVER_DATABASE")
     username = os.getenv("SQLSERVER_USER")
     password = os.getenv("SQLSERVER_PASSWORD")
     driver = os.getenv("SQLSERVER_DRIVER", "ODBC Driver 18 for SQL Server")
 
-    if not server or not database:
-        raise ValueError("Set SQLSERVER_HOST and SQLSERVER_DATABASE in .env.")
-
-    if not username or not password:
-        raise ValueError(
-            "Set SQLSERVER_USER and SQLSERVER_PASSWORD. "
-            "Windows Trusted_Connection is not the default on macOS."
-        )
+    missing = [
+        name
+        for name, value in {
+            "SQLSERVER_DATABASE": database,
+            "SQLSERVER_USER": username,
+            "SQLSERVER_PASSWORD": password,
+        }.items()
+        if not value
+    ]
+    if missing:
+        raise ValueError("Set the following values in .env: " + ", ".join(missing))
 
     # ODBC brace-quoted values safely support semicolons and closing braces.
     def odbc_value(value: str) -> str:
         return "{" + value.replace("}", "}}") + "}"
 
-    connection_string = (
+    server = f"tcp:{host},{port}"
+    return (
         f"DRIVER={odbc_value(driver)};"
         f"SERVER={odbc_value(server)};"
         f"DATABASE={odbc_value(database)};"
@@ -70,9 +75,13 @@ def get_sqlserver_connection():
         f"PWD={odbc_value(password)};"
         "Encrypt=yes;"
         "TrustServerCertificate=yes;"
+        "Connection Timeout=15;"
     )
 
-    return pyodbc.connect(connection_string)
+
+def get_sqlserver_connection():
+    """Connect from the Mac host to the SQL Server container's published port."""
+    return pyodbc.connect(build_sqlserver_connection_string())
 
 def get_watermark():
     connection = get_snowflake_connection()
