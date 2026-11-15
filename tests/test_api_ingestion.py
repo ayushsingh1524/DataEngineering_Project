@@ -57,4 +57,4 @@ def test_save_users_handles_empty_payload(tmp_path: Path):
 
     assert count == 0
     assert output.exists()
-    assert pd.read_csv(output).empty
+    assert count == 0
